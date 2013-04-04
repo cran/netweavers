@@ -1,0 +1,314 @@
+%&pdflatex
+% -*- mode: noweb; noweb-default-code-mode: R-mode; -*-
+  %\VignetteIndexEntry{NetWeAvers}
+%\VignetteKeywords{Networks}
+%\VignetteDepends{limma,Biobase,igraph,BiocGenerics}
+%\VignettePackage{netweavers}
+%documentclass[12pt, a4paper]{article}
+\documentclass[12pt]{article}
+
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage[authoryear,round]{natbib}
+\usepackage{graphicx}
+
+\textwidth=6.2in
+\textheight=8.5in
+%\parskip=.3cm
+\oddsidemargin=.1in
+\evensidemargin=.1in
+\headheight=-.3in
+
+\newcommand{\scscst}{\scriptscriptstyle}
+\newcommand{\scst}{\scriptstyle}
+\author{Elizabeth McClellan}
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+\title{NetWeAvers Vignette}
+\maketitle
+\tableofcontents
+\section{Introduction}
+
+This document describes the functions available in the {\tt netweavers} package. 
+The package may be used with proteomics mass spectrometry data to summarize quantified peptide data, fit linear models and test for differential expression, and perform network analysis on protein-protein interaction networks using protein $p$-values. 
+To get started, first you need to load the package in your {\tt R} session:
+\begin{Sinput}
+> library(netweavers)
+\end{Sinput}
+<<echo=F,results=hide>>=
+library(netweavers)
+@
+
+\noindent We will use the example dataset called {\tt vanHoof}, which contains mass spectrometry (MS) data from a phosphorylation study of human embryonic stem cells (hESCs), \citep{VH2009}. 
+The SILAC experiment measured undifferentiated hESCs and hESCs differentiated with bone morphogenetic protein 4 (BMP4) at three time points (30 minutes, 60 minutes and 240 minutes) with two 
+biological replicates at each time point. The data were processed using PVIEW \citep{Khan09,Khan11}. 
+
+The dataset that contains the main objects required for use in this vignette is loaded by
+<<>>=
+data(vanHoof)
+@
+
+\section{Differential Expression Test}
+
+The function {\tt DEtest} uses functions from the package \href{http://bioinf.wehi.edu.au/limma/}{{\bf limma}} for hypothesis testing via linear models 
+on quantified protein- or peptide-level data. The input requires
+the data to be in the form of an \href{http://bioconductor.org/packages/release/bioc/vignettes/Biobase/inst/doc/ExpressionSetIntroduction.pdf}{{\tt ExpressionSet}}.
+
+We will use {\tt ExpSetVH} to test for differential expression at the peptide level. This {\tt ExpressionSet} contains the 
+quantified data in the {\tt assayData} slot, 
+the sequences and protein IDs in the {\tt featureData} slot, and the experimental design, 
+{\tt phenoDataVH}, in the {\tt phenoData} slot:
+<<>>=
+ExpSetVH
+@
+\noindent Note that the {\tt phenoData} contains the label {\tt groups} that 
+indicates which samples belong to each of the three factor levels 
+(time points) of the experiment:
+<<>>=
+phenoData(ExpSetVH)@data
+@
+\noindent Note that the {\tt ExpressionSet} only contains 6 samples (and not 12) because with SILAC one measures the ratio of abundances of differentiated versus undifferentiated hESCs.
+
+The function {\tt DEtest} takes as input the {\tt ExpressionSet} and the name of the variable subject to testing:
+<<>>=
+outDE <- DEtest(ExpSetVH, label="groups")
+@
+\noindent If there are technical replicates in the data, set {\tt reps = TRUE}. 
+Note the warning: the function {\tt decideTests()} with {\tt method = "nestedF"} 
+is used for multiple testing across the contrasts and proteins (or peptides); 
+it requires complete data (see the \href{http://www.bioconductor.org/packages/release/bioc/vignettes/limma/inst/doc/usersguide.pdf}{limma User's Guide} for more details).
+One option is to filter out peptides with too many missing values and impute the remaining NAs.
+The resulting object is a list containing two items:
+\begin{enumerate}
+\item A list of data frames 
+comprised of the output of {\tt topTable} applied to the {\tt eBayes} model fit.
+\item A data frame containing (moderated) statistics from an \emph{F}-test.
+\end{enumerate}
+<<>>=
+str(outDE)
+@
+The data frames contain any original annotation and several statistics output by the function {\tt topTable} including $p$-values and adjusted $p$-values. 
+These $p$-values can be used as input in {\tt runNetweavers}, e.g. for comparing timepoints 30 and 60 minutes you could use 
+<<>>=
+outDE_30to60 <- outDE$resultsTable_limma[["min30 - min60"]]
+@
+
+\section{Peptide to Protein Summarization}
+
+If your quantified MS data are at the peptide level, you will need to summarize the data to the protein level in order to do network analysis. 
+
+\subsection{Data Frame Summarization}
+
+One way to roll-up peptides to proteins is to input a data frame
+of the quantified data, along with the sequences, protein IDs and
+experimental design, into the function {\tt customSummarizer}. 
+The input data look like: 
+<<>>=
+head(dataVH)
+phenoDataVH
+@
+\noindent and the following shows how to specify the parameters in the function
+to get the desired output:
+<<>>=
+esetSum1 <- customSummarizer(pepquant=dataVH, samplecols=3:8, 
+                            peptidecol=1, proteincol=2, 
+                            sumprot="median", phenodata=phenoDataVH)
+esetSum1
+@
+\noindent The output is an {\tt ExpressionSet} 
+with the summarized, protein-level data in the {\tt assayData}
+slot. The slot {\tt phenoData} contains the {\tt phenoDataVH} 
+and the slot {\tt featureData} contains the {\tt Protein} field
+from {\tt dataVH}. The output can be input 
+into {\tt DEtest} for differential expression testing.
+
+In this example we used the default function {\tt median} to 
+aggregate all peptide values of a given protein. You may also input the function
+{\tt mean}. Missing values in the feature data (in the case of 
+peptides that have not been quantified in all samples) are allowed but ignored.
+
+\subsection{ExpressionSet Summarization}
+
+If you already have your data in an {\tt ExpressionSet}, e.g. {\tt ExpSetVH}, then you can simply run
+<<>>=
+esetSum2 <- esetSummarizer(ExpSetVH, sumprot="median")
+@
+\noindent to get the summarized data. The output can be input 
+into {\tt DEtest} for differential expression analysis.
+
+\subsection{$p$-Value Summarization}
+
+Suppose you have peptide-level data and prefer to test
+at this level as opposed to the protein level, but still want to
+run the data through a network analysis. The function {\tt pvalueSummarizer}
+allows you to do this: it summarizes peptide $p$-values (e.g. generated by {\tt DEtest})
+and the output may be used in {\tt runNetweavers}. 
+
+The method used to aggregate $p$-values is Fisher's method. It returns a 
+single $p$-value for each set of $p$-values, $x$, using the chi-squared distribution function
+on $-2\sum\ln(x)$ with degrees of freedom equal to the length of $x$. 
+
+For example, we can use $p$-values from {\tt outDE} generated in the previous section for comparing timepoints 30 and 60 minutes:
+<<>>=
+pvals3060 <- outDE_30to60[,c("Protein","P.Value")]
+names(pvals3060)[2] <- "pvalue"
+pvalsSum <- pvalueSummarizer(pvals3060)
+head(pvalsSum)
+@
+
+Note that Fisher's Method assumes independence, which is clearly not true for peptides from the same protein, so these
+$p$-values might be too optimistic. 
+
+\section{Find and Score Dense Clusters}
+
+The main function of the NetWeAvers algorithm is to perform network analysis. 
+This section describes the core network analysis functions that find and score 
+highly connected subgraphs within a protein-protein interaction network. 
+
+The first thing we want to do is filter an entire human network down to just those 
+proteins of interest and their first interactors. We use {\tt networkVH} which is
+the Reactome version 43 protein-protein interaction network \citep{Matt09}: 
+<<>>=
+filtnet <- filterNetwork(networkVH, pvalsSum$Protein)
+@
+\noindent Then we find all
+the dense clusters of this network that have at least 4 proteins (default size) by taking
+random walks of length 10 (see \citet{Pons06} for details):
+<<>>=
+## note: this will take a couple of minutes
+## see clust_2_proteinVH for identical output
+outDC <- findDenseClusters(filtnet, pvalsSum$Protein, min_clus_size=4, 
+                           steps=10)
+denseClusters <- outDC$clust_2_protein
+@
+The first item in the list is the data frame of cluster information that we will use in the following example. The second two items are special classes of the \href{http://igraph.sourceforge.net/}{\bf igraph} package that can be used for visualizing the network (see Visualization section). 
+
+In order to score the clusters, we first need to calculate the protein weights and measures, 
+which requires the use of $p$-values. We will use the summarized $p$-values from the comparison of 30 and 60 minutes (see previous section):
+<<>>=
+## change name of p-values for use in measureCalc
+names(pvalsSum)[2] <- "pvalue"
+
+## calculate protein weights
+proteinWts <- weightCalc(filtnet)
+
+## calculate protein measures
+proteinMsr  <- measureCalc(pvalsSum, proteinWts, weightamt=3)
+head(proteinMsr)
+@
+\noindent Note that we used a weight amount of 3, meaning we consider the weights nearly as important as $p$-values. 
+Now that we have all the necessary data in {\tt proteinMsr} we can score the clusters contained in {\tt outDC}. The {\tt cscoremethod} is the function that aggregates the protein measures
+per cluster and here we use the default mean:
+<<>>=
+cscores <- scoreClusters(denseClusters, proteinMsr, cscoremethod="mean")
+@
+\noindent The larger the cluster score, the more significantly differentially regulated the proteins in the cluster are. We can use this statistic to rank our clusters, but we can also run a permutation 
+test to see if the scores are large not by chance alone. The function {\tt permTest} will do this, and here we perform 1000 permutations ({\tt B}) and make sure we use the exact same
+{\tt cscoremethod} that we did to find the {\tt cscores}:
+<<>>=
+set.seed(1234)
+cpvals <- permTest(B=1000, prot_data=proteinMsr, 
+                   clust_2_protein=denseClusters,
+                   cluster_scores=cscores, cscoremethod="mean")
+@
+\noindent Note that we used {\tt set.seed} before performing the permutation, which ensures the same results will be output from the permutation test in the next section. 
+Finally, we can combine the cluster $p$-values with the cluster scores and membership information:
+<<>>=
+cdata <- data.frame(Cluster_ID=denseClusters$clusID,
+                    Cluster_size=denseClusters$clusSIZE,
+                    Cluster_score=cscores,
+                    Cluster_pvalue=cpvals,
+                    Cluster_symbol=denseClusters[,-c(1,2)])
+@
+
+\section{All-in-one: {\tt runNetweavers}}
+
+The function {\tt runNetweavers} is a wrapper for the functions in the NetWeAvers package. This function performs all of the steps in the NetWeAvers algorithm including filtering the protein network, finding dense clusters (only if output of {\tt findDenseClusters} not already provided), and calculating protein weights, protein measures, cluster scores, and cluster $p$-values from a permutation test (optional). 
+The following code runs NetWeAvers using the default values and produces the same output as above ({\tt proteinMsr}, {\tt filtnet}, and {\tt cdata}) in a list:
+<<>>=
+set.seed(1234)
+outNW <- runNetweavers(pvalsSum, filtnet, weightamt=3)
+str(outNW,list.len=5)
+@
+
+\section{Visualization}
+\subsection{Writing Files for Cytoscape}
+Here we show how to export the data that can be used as input in Cytoscape \citep{Shannon03} to make the following figure.
+First we will create a node attributes file by adding the cluster membership to the protein list:
+<<>>=
+proteininfo <- outNW$proteininfo
+clusterinfo <- outNW$clusterinfo
+proteininfo$cluster <- NA
+for(i in 1:nrow(clusterinfo)){
+  proteininfo$cluster[proteininfo[,1]%in%clusterinfo[i,-c(1:4)]] <- i
+}
+@
+\noindent Then we can write the file to be uploaded into Cytoscape as node attributes. Note
+that Cytoscape cannot parse missing values, so we replace them with -9: 
+<<>>=
+## write.table(proteininfo,"nodeAttributes.txt",
+##             sep="\t",row.names=F,quote=F,na="-9")
+@
+\noindent The following writes the network file: 
+<<>>=
+## write.table(filtnet,"network.txt",sep="\t",row.names=F,quote=F)
+@
+\noindent and after a little bit of customization in Cytoscape we get, for example, the graph of cluster 5 in Figure 1.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=.75\textwidth]{cluster5}
+  \caption{Image of cluster 5, generated with Cytoscape. A red node indicates a protein with a
+  $p$-value less than 0.05, yellow less than 0.10, blue less than 1.00. A grey protein is 
+  one that is not in the Van Hoof dataset but is in the Reactome network.}\label{cluster5}
+\end{figure}
+
+\subsection{Using {\tt igraph}}
+It is also possible to visualize the resulting filtered network using the functions available in the \href{http://igraph.sourceforge.net/}{\bf igraph} package. 
+As an example, we will use the output from findDenseClusters to set up the plot (but not run, since it takes a while) of the graph with the proteins colored by cluster membership: 
+<<>>=
+dc_member <- outDC[['denseClus']]$membership
+dc_graph  <- outDC$subGraph
+cols      <- rainbow(length(unique(dc_member)))
+
+## make the plot
+## plot(dc_graph, vertex.color=cols, vertex.size=3, vertex.label=NA, 
+##      edge.color="grey")
+@
+
+\subsection{Using {\tt RCystocape}}
+See \href{http://rcytoscape.systemsbiology.net/versions/current/index.html}{{\tt RCytoscape}} on how to use transfer the network and attributes from R to Cytoscape.
+
+  
+\bibliographystyle{plainnat}
+%\bibliography{netweavers}
+
+\begin{thebibliography}{}
+\bibitem[Cerami {\it et~al}., 2010]{Cerami10} Cerami EG, Gross BE, Demir E, Rodchenkov I, Babur O, Anwar N, Schultz N, Bader GD, and Sander C. (2010). Pathway Commons, a web resource for biological pathway data. {\it Nucleic Acids Res.} {\bf 39(Database issue)}:D685-D690.
+
+%\bibitem[Gramolini {\it et~al}., 2008]{Gram08} Gramolini AO, Kislinger T, Alikhani-Koopaei R, Fong V, Thompson NJ, Isserlin R, Sharma P, Oudit GY, Trivieri MG, Fagan A, Kannan A, Higgins DG, Huedig H, Hess G, Arab S, Seidman JG, Seidman CE, Frey B, Perry M, Backx PH, Liu PP, MacLennan DH, and Emili A. (2008). Comparative Proteomics Profiling of a Phospholamban Mutant Mouse Model of Dilated Cardiomyopathy Reveals Progressive Intracellular Stress Responses. {\it Mol. Cell. Proteomics} {\bf 7(3)}:519-533.
+
+%\bibitem[Carey, Long and Gentleman]{CareyRBGL} Carey V, Long L, and Gentleman R. RBGL: An interface to the BOOST graph library. R package version 1.26.0. [\href{http://CRAN.R-project.org/package=RBGL}{http://CRAN.R-project.org/package=RBGL}].
+
+\bibitem[Khan {\it et~al}., 2009]{Khan09} Khan Z, Bloom JS, Garcia BA, Singh M, and Kruglyak L. (2009). Protein Quantification Across
+Hundreds of Experimental Conditions. {\it Proc. Natl. Acad. Sci.} {\bf 06(37)}:15544-15548.
+
+\bibitem[Khan {\it et~al}., 2011]{Khan11} Khan Z, Amini S, Bloom JS, Ruse C, Caudy AA, Kruglyak L, Singh M, Perlman DH, and Tavazoie
+S. (2011). Accurate proteome-wide protein quantification from high-resolution 15N mass spectra.
+{\it Genome Biology} {\bf 12}:R122.
+
+\bibitem[Matthews {\it et~al}., 2009]{Matt09} Matthews L, Gopinath G, Gillespie M, Caudy M, Croft D, de Bono B, Garapati P, Hemish J, Hermjakob H, Jassal B, Kanapin A, 
+Lewis S, Mahajan S, May B, Schmidt E, Vastrik I, Wu G, Birney E, Stein L, D'Eustachio P. (2009). 
+Reactome knowledgebase of biological pathways and processes. {\it Nucleic Acids Res.} {\bf 37(suppl 1)}:D619-D622.
+
+\bibitem[Pons and Latapy, 2006]{Pons06} Pons P and Latapy M (2006). Computing Communities in Large Networks Using Random Walks. {\it J. Graph Algorithms Appl.} {\bf 10(2)}:191-218.
+
+\bibitem[Shannon {\it et~al}., 2003]{Shannon03} Shannon P, Markiel A, Ozier O, Baliga NS, Wang JT, Ramage D, Amin N, Schwikowski B, and Ideker T. (2003). Cytoscape: a software environment for integrated models of biomolecular interaction networks. {\it Genome Research} {\bf 13(11)}:2498-2504.
+
+\bibitem[Van Hoof {\it et~al}., 2009]{VH2009} Van Hoof D, Munoz J, Braam SR, Pinkse MW, Linding R, Heck AJ, Mummery CL, and Krijgsveld
+J. (2009). Phosphorylation dynamics during early differentiation of human embryonic stem cells.
+{\it Cell Stem Cell} {\bf 5(2)}:214-226.
+
+\end{thebibliography}
+
+\end{document}
