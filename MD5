@@ -1,14 +1,14 @@
-c5b13ea9890761c9a73fc3cae98aa552 *DESCRIPTION
-df390c53434517b304ac5db487184641 *NAMESPACE
+1a5f80ee552b0503fea2cd41f334a08c *DESCRIPTION
+912ee3ef2096b710d9f0eeaf024f1e19 *NAMESPACE
 a4b645fd82fd5a8da69ba3d38f0209ff *R/DEtest.R
 9b36db276fcefe72c8c71f00ead0924c *R/nw_algorithm.R
 269e1252f9a88e9f1df20baf6821be35 *R/summarizer.R
+c4ab2c34d6b04e81053ed9265768aa70 *build/vignette.rds
 05395fcd82c33a1cb14d3ecc562580a4 *data/datalist
-211787c1481623fd69165469e5388ee6 *data/vanHoof.rda
-5bb353aa3fd70ba9a41c3e43284ad690 *inst/doc/cluster5.png
+f5bd9ac516e4aa79d844790bd7fa6628 *data/vanHoof.rda
 224c7daf0f6dcc53407f3985b444467e *inst/doc/netweavers.R
-814dcf2afbcafa8d481d1abe9369ba80 *inst/doc/netweavers.Rnw
-82f1e0a1f93df51f54318aad35cc01b6 *inst/doc/netweavers.pdf
+33ae43646d6ba3b4a8e6c0cee6bba72a *inst/doc/netweavers.Rnw
+d89eb122038abdcb6c04104d9823144d *inst/doc/netweavers.pdf
 37326e5b8b26abb67dc001c865a2969b *man/DEtest.Rd
 e56cfce23e52d07beebba1034ba732d3 *man/customSummarizer.Rd
 23b158b17687705ceed0a8f09ffce207 *man/esetSummarizer.Rd
@@ -24,3 +24,5 @@ d7bf458b353f89e1f15b2dce7991b440 *man/scoreClusters.Rd
 7788a037b41f5a44cbbee46568e787e7 *man/summarizer.Rd
 11b9755e51e55c6b1f7f4959b7f958ae *man/vanHoof.Rd
 64aad919acc1b05d6a43838b6ebb3ff4 *man/weightCalc.Rd
+5bb353aa3fd70ba9a41c3e43284ad690 *vignettes/cluster5.png
+33ae43646d6ba3b4a8e6c0cee6bba72a *vignettes/netweavers.Rnw

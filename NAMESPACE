@@ -1,1 +1,5 @@
 exportPattern("^[[:alpha:]]+")
+import("BiocGenerics")
+import("Biobase")
+import("igraph")
+importFrom("limma",topTable,lmFit,decideTests,eBayes,contrasts.fit,duplicateCorrelation,makeContrasts)
